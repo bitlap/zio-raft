@@ -4,7 +4,6 @@
 ![CI](https://github.com/ariskk/zio-raft/workflows/CI/badge.svg)
 [![codecov](https://codecov.io/gh/jxnu-liguobin/zio-raft/branch/master/graph/badge.svg?token=V95ZMWUUCE)](https://codecov.io/gh/jxnu-liguobin/zio-raft)
 
-
 An Implementation of Raft using ZIO in Scala.
 
 ## Raft
