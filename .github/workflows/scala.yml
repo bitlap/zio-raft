@@ -35,9 +35,9 @@ jobs:
       - name: Aggregate coverage report
         run: sbt coverageAggregate
   
-  # it needs be allow in https://codecov.io
-  #      - name: Upload test coverage report 
-  #        run: bash <(curl -s https://codecov.io/bash)
+        # it needs be allow in https://codecov.io
+      - name: Upload test coverage report 
+        run: bash <(curl -s https://codecov.io/bash)
 
   ci:
     runs-on: ubuntu-20.04

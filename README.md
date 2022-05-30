@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ariskk/zio-raft/blob/master/LICENSE)
 ![CI](https://github.com/ariskk/zio-raft/workflows/CI/badge.svg)
+[![codecov](https://codecov.io/gh/jxnu-liguobin/zio-raft/branch/master/graph/badge.svg?token=V95ZMWUUCE)](https://codecov.io/gh/jxnu-liguobin/zio-raft)
+
 
 An Implementation of Raft using ZIO in Scala.
 
