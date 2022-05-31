@@ -2,13 +2,12 @@ import sbtrelease.ReleaseStateTransformations._
 
 // TODO Add GitHub BOT to automatically upgrade the version
 lazy val scala212   = "2.12.14"
-lazy val scala213   = "2.13.7"
-lazy val zioVersion = "1.0.13"
+lazy val scala213   = "2.13.8"
+lazy val zioVersion = "1.0.14"
 
 inThisBuild(
   List(
     scalaVersion := scala213,
-    version := "0.2.0-SNAPSHOT",
     organization := "com.ariskk",
     developers := List(
       Developer(
@@ -25,7 +24,7 @@ lazy val zioDeps = Seq(
   "dev.zio" %% "zio" % zioVersion
 )
 
-lazy val rocksDBVersion = "6.11.4"
+lazy val rocksDBVersion = "7.2.2"
 lazy val rocksDbDeps = Seq(
   "org.rocksdb" % "rocksdbjni" % rocksDBVersion
 )
@@ -33,27 +32,26 @@ lazy val rocksDbDeps = Seq(
 lazy val testDepds = Seq(
   "dev.zio"       %% "zio-test"     % zioVersion % Test,
   "dev.zio"       %% "zio-test-sbt" % zioVersion % Test,
-  "org.scalatest" %% "scalatest"    % "3.2.0"    % Test
+  "org.scalatest" %% "scalatest"    % "3.2.12"   % Test
 )
 
 lazy val otherDepds = Seq(
   "com.chuusai" %% "shapeless" % "2.3.9",
-  "com.twitter" %% "chill"     % "0.9.5"
+  "com.twitter" %% "chill"     % "0.10.0"
 )
 
 lazy val CompileTest = "compile->compile;test->test"
 
 lazy val core = (project in file("core")).settings(
   Publishing.publishSettings,
-  name := "zio-raft",
+  name := "zio-raft"
 )
 
 lazy val rocksdb = (project in file("rocksdb"))
   .settings(
     libraryDependencies ++= rocksDbDeps,
     publish / skip := true,
-    name := "zio-raft-rocksdb",
-    Publishing.publishSettings
+    name := "zio-raft-rocksdb"
   )
   .dependsOn(core % CompileTest)
 
@@ -61,8 +59,7 @@ lazy val server = (project in file("server"))
   .settings(
     libraryDependencies += "dev.zio" %% "zio-nio" % "1.0.0-RC12",
     publish / skip := true,
-    name := "zio-raft-server",
-    Publishing.publishSettings
+    name := "zio-raft-server"
   )
   .dependsOn(
     core    % CompileTest,

@@ -14,6 +14,7 @@ import zio.nio.{ InetAddress, InetSocketAddress }
 import com.ariskk.raft.model.Command.{ ReadCommand, WriteCommand }
 import com.ariskk.raft.model.CommandResponse._
 import com.ariskk.raft.model._
+
 final class RaftClient(
   nodes: Seq[RaftServer.Config],
   serdeRef: Ref[Serde],
