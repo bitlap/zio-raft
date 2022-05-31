@@ -78,7 +78,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
       },
       testM("It should elect a leader when has more nodes") {
         for {
-          (client, fibers) <- electLeader(5)
+          (client, fibers) <- electLeader(8)
           _                <- ZIO.collectAll((1 to 6).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
           _ <- ZIO.collectAll(
             (1 to 6).map(i =>
