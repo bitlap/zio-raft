@@ -1,7 +1,7 @@
 package com.ariskk.raft.server
 
 import java.net.UnknownHostException
-//import zio.duration._
+import zio.duration._
 import zio.nio.InetAddress
 import zio.test.Assertion._
 import zio.test.environment._
@@ -13,12 +13,12 @@ import com.ariskk.raft.statemachine._
 
 object RaftServerSpec extends DefaultRunnableSpec {
 
-//  override def aspects: List[TestAspectAtLeastR[Live]] = List(TestAspect.timeout(120.seconds))
+  override def aspects: List[TestAspectAtLeastR[Live]] = List(TestAspect.timeout(120.seconds))
 
   private lazy val serde: Serde = Serde.kryo
 
   private def createStorage(nodeId: NodeId): ZIO[Any, Throwable, RocksDBStorage] =
-    RocksDBStorage(s"/tmp/rocks-${nodeId.value}", "DB")
+    RocksDBStorage(s"~/tmp/rocks-${nodeId.value}", "DB")
 
   private def createRaftServer[T](
     config: RaftServer.Config,
@@ -78,7 +78,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
       },
       testM("It should elect a leader when has more nodes") {
         for {
-          (client, fibers) <- electLeader(8)
+          (client, fibers) <- electLeader(4)
           _                <- ZIO.collectAll((1 to 6).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
           _ <- ZIO.collectAll(
             (1 to 6).map(i =>
