@@ -1,7 +1,6 @@
 package com.ariskk.raft.server
 
 import java.net.UnknownHostException
-
 import zio.duration._
 import zio.nio.InetAddress
 import zio.test.Assertion._
@@ -9,7 +8,6 @@ import zio.test.TestAspect.eventually
 import zio.test.environment._
 import zio.test.{ DefaultRunnableSpec, _ }
 import zio.{ Fiber, IO, ZIO }
-
 import com.ariskk.raft.model._
 import com.ariskk.raft.rocksdb._
 import com.ariskk.raft.statemachine._
@@ -82,7 +80,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
     } @@ eventually,
     testM("It should elect a leader when has more nodes") {
       lazy val program = for {
-        (_, fibers) <- electLeader(5)
+        (_, fibers) <- electLeader(7)
         _           <- ZIO.collectAll(fibers.map(_.interrupt))
       } yield ()
       assertM(program)(equalTo())

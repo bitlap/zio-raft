@@ -105,13 +105,13 @@ final class RaftServer[T](
       } yield ()
     }
 
-  private lazy val sendMessages: ZIO[Any, Exception, Unit] =
+  private lazy val sendMessages: ZIO[Clock, Exception, Unit] =
     (for {
       raft <- raftRef.get
       _ <- raft.takeAll.flatMap { ms =>
         ZIO.collectAllPar(ms.map(sendMessage))
       }.forever
-    } yield ()).mapError(f => new Exception(f)).provideLayer(zio.clock.Clock.live)
+    } yield ()).mapError(f => new Exception(f))
 
   lazy val run: ZIO[Clock, Exception, Unit] = for {
     raft                    <- raftRef.get
