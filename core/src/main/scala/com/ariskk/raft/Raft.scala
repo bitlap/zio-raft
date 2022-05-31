@@ -121,22 +121,23 @@ final class Raft[T] private (
         updateCommitIndex
     else state.decrementNextIndex(response.from)
 
-  private def processAppendEntriesResponses: ZIO[Clock, StorageException, Unit] = queues.appendResponseQueue.takeAll.flatMap { aers =>
-    for {
-      currentTerm <- storage.getTerm
-      maxTerm = aers.map(_.term.term).maxOption
-      _ <- maxTerm.fold[ZIO[Clock, StorageException, Unit]](IO.unit) { mx =>
-        if (mx > currentTerm.term)
-          storage.storeTerm(Term(mx)) <* state.becomeFollower
-        else
-          ZIO
-            .collectAll(
-              aers.map(response => handleAppendEntriesResponse(response))
-            )
-            .unit
-      }
-    } yield ()
-  }.repeatWhileM(_ => isLeader)
+  private def processAppendEntriesResponses: ZIO[Clock, StorageException, Unit] =
+    queues.appendResponseQueue.takeAll.flatMap { aers =>
+      for {
+        currentTerm <- storage.getTerm
+        maxTerm = aers.map(_.term.term).maxOption
+        _ <- maxTerm.fold[ZIO[Clock, StorageException, Unit]](IO.unit) { mx =>
+          if (mx > currentTerm.term)
+            storage.storeTerm(Term(mx)) <* state.becomeFollower
+          else
+            ZIO
+              .collectAll(
+                aers.map(response => handleAppendEntriesResponse(response))
+              )
+              .unit
+        }
+      } yield ()
+    }.repeatWhileM(_ => isLeader)
 
   private def sendHeartbeats: ZIO[Clock, RaftException, Unit] = {
 
@@ -203,7 +204,7 @@ final class Raft[T] private (
   private def sendVoteResponse(voteRequest: VoteRequest, granted: Boolean): ZIO[Any, Nothing, Boolean] =
     sendMessage(VoteResponse(nodeId, voteRequest.from, voteRequest.term, granted))
 
-  private def proccessVoteRequest(voteRequest: VoteRequest): ZIO[Any, StorageException, Unit] = (for {
+  private def processVoteRequest(voteRequest: VoteRequest): ZIO[Any, StorageException, Unit] = (for {
     currentTerm <- storage.getTerm
     currentVote <- storage.getVote
     lastIndex   <- storage.lastIndex
@@ -229,7 +230,7 @@ final class Raft[T] private (
   } yield ())
 
   private def processInboundVoteRequests: ZIO[Clock, RaftException, Unit] = queues.inboundVoteRequestQueue.take
-    .flatMap(proccessVoteRequest)
+    .flatMap(processVoteRequest)
     .forever
 
   private def shouldAppend(previousIndex: Index, previousTerm: Term): ZIO[Any, StorageException, Boolean] =

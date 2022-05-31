@@ -21,7 +21,7 @@ final class RaftServer[T](
   serdeRef: Ref[Serde]
 ) {
 
-  private val chunkSize: Int = 1000
+  private val chunkSize: Int                                                 = 1000
   private[server] def allEntries: ZIO[Any, StorageException, List[LogEntry]] = raftRef.get.flatMap(_.getAllEntries)
 
   private[server] def getState: ZIO[Any, Nothing, NodeState] = raftRef.get.flatMap(_.nodeState)
