@@ -60,30 +60,39 @@ object RaftServerSpec extends DefaultRunnableSpec {
       }
     } yield client -> fibers
 
-  def spec: Spec[TestEnvironment, TestFailure[Serializable], TestSuccess] = suite("RaftServerSpec")(
-    testM("It should elect a leader, accept commands and respond to queries") {
-      lazy val program = for {
-        (client, fibers) <- electLeader(3)
-        _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
-        _ <- ZIO.collectAll(
-          (1 to 5).map(i =>
-            client.submitQuery(ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[_] =>
-              result.contains(i)
-            }
+  def spec: Spec[TestEnvironment, TestFailure[Serializable], TestSuccess] =
+    suite("RaftServerSpec")(
+      testM("It should elect a leader, accept commands and respond to queries") {
+        lazy val program = for {
+          (client, fibers) <- electLeader(3)
+          _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
+          _ <- ZIO.collectAll(
+            (1 to 5).map(i =>
+              client.submitQuery(ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[_] =>
+                result.contains(i)
+              }
+            )
           )
-        )
-        _ <- ZIO.collectAll(fibers.map(_.interrupt))
-      } yield ()
+          _ <- ZIO.collectAll(fibers.map(_.interrupt))
+        } yield ()
 
-      assertM(program)(equalTo())
-    },
-    testM("It should elect a leader when has more nodes") {
-      lazy val program = for {
-        (_, fibers) <- electLeader(5)
-        _           <- ZIO.collectAll(fibers.map(_.interrupt))
-      } yield ()
-      assertM(program)(equalTo())
-    }
-  )
+        assertM(program)(equalTo())
+      },
+      testM("It should elect a leader when has more nodes") {
+        lazy val program = for {
+          (client, fibers) <- electLeader(5)
+          _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
+          _ <- ZIO.collectAll(
+            (1 to 5).map(i =>
+              client.submitQuery(ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[_] =>
+                result.contains(i)
+              }
+            )
+          )
+          _ <- ZIO.collectAll(fibers.map(_.interrupt))
+        } yield ()
+        assertM(program)(equalTo())
+      }
+    )
 
 }
