@@ -121,14 +121,13 @@ final class Raft[T] private (
         updateCommitIndex
     else state.decrementNextIndex(response.from)
 
-  private def processAppendEntriesResponses = queues.appendResponseQueue.takeAll.flatMap { aers =>
+  private def processAppendEntriesResponses: ZIO[Clock, StorageException, Unit] = queues.appendResponseQueue.takeAll.flatMap { aers =>
     for {
       currentTerm <- storage.getTerm
       maxTerm = aers.map(_.term.term).maxOption
       _ <- maxTerm.fold[ZIO[Clock, StorageException, Unit]](IO.unit) { mx =>
         if (mx > currentTerm.term)
-          (storage.storeTerm(Term(mx)) <*
-            state.becomeFollower)
+          storage.storeTerm(Term(mx)) <* state.becomeFollower
         else
           ZIO
             .collectAll(
@@ -177,7 +176,7 @@ final class Raft[T] private (
       .repeatUntilM(_ => nodeState.map(_ != NodeState.Candidate))
   }
 
-  private def electionResult: ZIO[clock.Clock, RaftException, Unit] = for {
+  private def electionResult: ZIO[Clock, RaftException, Unit] = for {
     state <- nodeState
     _ <- state match {
       case NodeState.Follower => processInboundEntries
@@ -265,7 +264,7 @@ final class Raft[T] private (
       }
     }
 
-  private def processEntries(ae: AppendEntries): ZIO[Any, RaftException, Unit] = (for {
+  private def processEntries(ae: AppendEntries): ZIO[Any, RaftException, Unit] = for {
     currentTerm  <- storage.getTerm
     currentState <- state.nodeState
     lastIndex    <- storage.logSize.map(x => Index(x - 1))
@@ -297,7 +296,7 @@ final class Raft[T] private (
         success = success
       )
     )
-  } yield ())
+  } yield ()
 
   private def processInboundEntries: ZIO[Clock, RaftException, Unit] =
     queues.appendEntriesQueue.take.disconnect
@@ -373,7 +372,7 @@ object Raft {
 
   object MessageQueues {
 
-    private val DefaultQueueSize = 100
+    private val DefaultQueueSize: Int = 100
 
     private def newQueue[T](queueSize: Int): UIO[Queue[T]] =
       Queue.bounded[T](queueSize)

@@ -21,6 +21,7 @@ final class RaftServer[T](
   serdeRef: Ref[Serde]
 ) {
 
+  private val chunkSize: Int = 1000
   private[server] def allEntries: ZIO[Any, StorageException, List[LogEntry]] = raftRef.get.flatMap(_.getAllEntries)
 
   private[server] def getState: ZIO[Any, Nothing, NodeState] = raftRef.get.flatMap(_.nodeState)
@@ -37,7 +38,7 @@ final class RaftServer[T](
 
   private def processCommandChannel(channel: AsynchronousSocketChannel): ZIO[Clock, Exception, Nothing] = {
     lazy val program = for {
-      chunk <- channel.readChunk(1000) // TODO fold stream
+      chunk <- channel.readChunk(chunkSize) // TODO fold stream
       bytes = chunk.toArray
       responseBytes <- processCommand(bytes)
       _             <- channel.writeChunk(Chunk.fromArray(responseBytes))
@@ -68,7 +69,7 @@ final class RaftServer[T](
 
   private def processMessageChannel(channel: AsynchronousSocketChannel): ZIO[Clock, Exception, Nothing] = {
     lazy val program = for {
-      chunk <- channel.readChunk(1000) // TODO fold stream
+      chunk <- channel.readChunk(chunkSize) // TODO fold stream
       bytes = chunk.toArray
       responseBytes <- processMessage(bytes)
     } yield ()

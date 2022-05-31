@@ -4,7 +4,6 @@ import java.net.UnknownHostException
 import zio.duration._
 import zio.nio.InetAddress
 import zio.test.Assertion._
-import zio.test.TestAspect.eventually
 import zio.test.environment._
 import zio.test.{ DefaultRunnableSpec, _ }
 import zio.{ Fiber, IO, ZIO }
@@ -14,7 +13,7 @@ import com.ariskk.raft.statemachine._
 
 object RaftServerSpec extends DefaultRunnableSpec {
 
-  override def aspects: List[TestAspectAtLeastR[Live]] = List(TestAspect.timeout(60.seconds))
+  override def aspects: List[TestAspectAtLeastR[Live]] = List(TestAspect.timeout(120.seconds))
 
   private lazy val serde: Serde = Serde.kryo
 

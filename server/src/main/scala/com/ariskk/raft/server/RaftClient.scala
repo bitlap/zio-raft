@@ -21,6 +21,8 @@ final class RaftClient(
   leaderRef: Ref[RaftServer.Config]
 ) {
 
+  private val chunkSize: Int = 1000
+
   private val backOff = Seq(
     10.milliseconds,
     50.milliseconds,
@@ -46,7 +48,7 @@ final class RaftClient(
     client = channel(leader.address, leader.raftClientPort)
     chunks <- client.use(c =>
       c.writeChunk(Chunk.fromArray(serde.serialize(command))) *>
-        c.readChunk(1000)
+        c.readChunk(chunkSize)
     )
     response <- ZIO.fromEither(serde.deserialize[CommandResponse](chunks.toArray))
     _ <- response match {
@@ -69,7 +71,7 @@ final class RaftClient(
     leader <- leaderRef.get
     bytes <- channel(leader.address, leader.raftClientPort).use(c =>
       c.writeChunk(Chunk.fromArray(serde.serialize(query))) *>
-        c.readChunk(1000)
+        c.readChunk(chunkSize)
     )
     response <- ZIO.effect(serde.deserialize[Option[T]](bytes.toArray).toOption.flatten)
   } yield response
