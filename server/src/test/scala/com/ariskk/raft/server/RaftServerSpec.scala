@@ -64,24 +64,10 @@ object RaftServerSpec extends DefaultRunnableSpec {
     suite("RaftServerSpec")(
       testM("It should elect a leader, accept commands and respond to queries") {
         for {
-          (client, fibers) <- electLeader(3)
+          (client, fibers) <- electLeader(5)
           _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
           r <- ZIO.collectAll(
             (1 to 5).map(i =>
-              client.submitQuery[Int](ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[Int] =>
-                result.contains(i)
-              }
-            )
-          )
-          _ <- ZIO.collectAll(fibers.map(_.interrupt))
-        } yield assert(())(equalTo())
-      },
-      testM("It should elect a leader when has more nodes") {
-        for {
-          (client, fibers) <- electLeader(4)
-          _                <- ZIO.collectAll((1 to 6).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
-          _ <- ZIO.collectAll(
-            (1 to 6).map(i =>
               client.submitQuery[Int](ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[Int] =>
                 result.contains(i)
               }
