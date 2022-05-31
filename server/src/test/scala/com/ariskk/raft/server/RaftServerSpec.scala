@@ -68,7 +68,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
           _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
           r <- ZIO.collectAll(
             (1 to 5).map(i =>
-              client.submitQuery(ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[_] =>
+              client.submitQuery[Int](ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[Int] =>
                 result.contains(i)
               }
             )
@@ -82,7 +82,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
           _                <- ZIO.collectAll((1 to 6).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
           _ <- ZIO.collectAll(
             (1 to 6).map(i =>
-              client.submitQuery(ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[_] =>
+              client.submitQuery[Int](ReadKey(Key(s"key-$i"))).repeatUntil { result: Option[Int] =>
                 result.contains(i)
               }
             )
