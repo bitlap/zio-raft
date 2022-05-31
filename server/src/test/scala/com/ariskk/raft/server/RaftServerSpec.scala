@@ -44,7 +44,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
 
   private def generateConfigs(numberOfNodes: Int): ZIO[Any, UnknownHostException, IndexedSeq[RaftServer.Config]] =
     ZIO.collectAll(
-      (1 to numberOfNodes).map(i => generateConfig(9700 + i, 9800 + i))
+      (1 to numberOfNodes).map(i => generateConfig(19700 + i, 19800 + i))
     )
 
   private def electLeader(
@@ -65,6 +65,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
     testM("It should elect a leader, accept commands and respond to queries") {
       lazy val program = for {
         (client, fibers) <- electLeader(3)
+        _                <- ZIO.collectAll(fibers.map(_.join))
         _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
         _ <- ZIO.collectAll(
           (1 to 5).map(i =>
@@ -73,18 +74,17 @@ object RaftServerSpec extends DefaultRunnableSpec {
             }
           )
         )
-        _ <- ZIO.collectAll(fibers.map(_.interrupt))
       } yield ()
 
       assertM(program)(equalTo())
-    } @@ eventually,
+    },
     testM("It should elect a leader when has more nodes") {
       lazy val program = for {
-        (_, fibers) <- electLeader(7)
-        _           <- ZIO.collectAll(fibers.map(_.interrupt))
+        (_, fibers) <- electLeader(5)
+        _           <- ZIO.collectAll(fibers.map(_.join))
       } yield ()
       assertM(program)(equalTo())
-    } @@ eventually
+    }
   )
 
 }

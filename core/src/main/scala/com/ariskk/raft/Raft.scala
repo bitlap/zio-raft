@@ -319,12 +319,12 @@ final class Raft[T] private (
   private[raft] def runFollowerLoop: ZIO[Clock, RaftException, (Unit, Unit)] =
     processInboundVoteRequests <&> processInboundEntries
 
-  def run = runFollowerLoop
+  def run: ZIO[Clock, RaftException, (Unit, Unit)] = runFollowerLoop
 
-  private def applyToStateMachine(command: WriteCommand) =
+  private def applyToStateMachine(command: WriteCommand): ZIO[Any, RaftException.StateMachineException, Unit] =
     stateMachine.write(command) *> state.incrementLastApplied
 
-  private def processCommand(command: WriteCommand) = {
+  private def processCommand(command: WriteCommand): ZIO[Any, RaftException, CommandResponse.Committed.type] = {
     lazy val processCommandProgram = for {
       term    <- storage.getTerm
       last    <- storage.lastIndex
