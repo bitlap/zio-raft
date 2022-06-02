@@ -13,12 +13,12 @@ import com.ariskk.raft.statemachine._
 
 object RaftServerSpec extends DefaultRunnableSpec {
 
-  override def aspects: List[TestAspectAtLeastR[Live]] = List(TestAspect.timeout(120.seconds))
+  override def aspects: List[TestAspectAtLeastR[Live]] = List(TestAspect.timeout(1200.seconds))
 
   private lazy val serde: Serde = Serde.kryo
 
   private def createStorage(nodeId: NodeId): ZIO[Any, Throwable, RocksDBStorage] =
-    RocksDBStorage(s"~/tmp/rocks-${nodeId.value}", "DB")
+    RocksDBStorage(s"/tmp/rocks-${nodeId.value}", "DB")
 
   private def createRaftServer[T](
     config: RaftServer.Config,
@@ -64,7 +64,7 @@ object RaftServerSpec extends DefaultRunnableSpec {
     suite("RaftServerSpec")(
       testM("It should elect a leader, accept commands and respond to queries") {
         for {
-          (client, fibers) <- electLeader(5)
+          (client, fibers) <- electLeader(3)
           _                <- ZIO.collectAll((1 to 5).map(i => live(client.submitCommand(WriteKey(Key(s"key-$i"), i)))))
           r <- ZIO.collectAll(
             (1 to 5).map(i =>

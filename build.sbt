@@ -51,15 +51,15 @@ lazy val rocksdb = (project in file("rocksdb"))
   .settings(
     libraryDependencies ++= rocksDbDeps,
     publish / skip := true,
-    name := "zio-raft-rocksdb"
+    name           := "zio-raft-rocksdb"
   )
   .dependsOn(core % CompileTest)
 
 lazy val server = (project in file("server"))
   .settings(
     libraryDependencies += "dev.zio" %% "zio-nio" % "1.0.0-RC12",
-    publish / skip := true,
-    name := "zio-raft-server"
+    publish / skip                   := true,
+    name                             := "zio-raft-server"
   )
   .dependsOn(
     core    % CompileTest,
@@ -75,11 +75,11 @@ lazy val root = (project in file("."))
     ThisBuild / scalacOptions ++= List(
       "-Wunused:imports"
     ),
-    publish / skip := true,
+    publish / skip                                        := true,
     ThisBuild / scalafixDependencies += "com.nequissimus" %% "sort-imports" % "0.6.1",
-    releaseIgnoreUntrackedFiles := true,
-    releaseTagName := (ThisBuild / version).value,
-    releasePublishArtifactsAction := PgpKeys.publishSigned.value,
+    releaseIgnoreUntrackedFiles                           := true,
+    releaseTagName                                        := (ThisBuild / version).value,
+    releasePublishArtifactsAction                         := PgpKeys.publishSigned.value,
     releaseProcess := Seq[ReleaseStep](
       checkSnapshotDependencies,
       inquireVersions,

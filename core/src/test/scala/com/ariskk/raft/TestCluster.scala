@@ -9,14 +9,10 @@ import zio.duration._
 import com.ariskk.raft.model.Command.{ ReadCommand, WriteCommand }
 import com.ariskk.raft.model._
 
-/**
- * Relays messages between Raft consensus modules to allow for quick in-memory leader election
- * and command submission testing.
- * By passing `chaos = true`, one can emulate a faulty network where
- * messages are reordered, dropped and delayed arbitrarily. Practically, it
- * tries to test safety under non-Byzantine conditions.
- * The implementation is non-deterministic on purpose as the algorithm must
- * converge at all times.
+/** Relays messages between Raft consensus modules to allow for quick in-memory leader election and command submission
+ *  testing. By passing `chaos = true`, one can emulate a faulty network where messages are reordered, dropped and
+ *  delayed arbitrarily. Practically, it tries to test safety under non-Byzantine conditions. The implementation is
+ *  non-deterministic on purpose as the algorithm must converge at all times.
  */
 final class TestCluster[T](nodeRef: Ref[Seq[Raft[T]]], chaos: Boolean) {
 
@@ -37,9 +33,7 @@ final class TestCluster[T](nodeRef: Ref[Seq[Raft[T]]], chaos: Boolean) {
     _    <- node.offerMessage(m)
   } yield ()
 
-  /**
-   * Simulates a shitty network.
-   * Your network might not be better than this.
+  /** Simulates a shitty network. Your network might not be better than this.
    */
   private def networkChaos(messages: Iterable[Message]): Iterable[ZIO[Any with Clock, Option[Nothing], Unit]] = {
     val shuffled   = scala.util.Random.shuffle(messages)
@@ -85,7 +79,9 @@ final class TestCluster[T](nodeRef: Ref[Seq[Raft[T]]], chaos: Boolean) {
   def queryStateMachines(query: ReadCommand): ZIO[Clock, RaftException, Seq[Option[T]]] = for {
     nodes   <- getNodes
     results <- ZIO.collectAll(nodes.map(_.submitQuery(query)))
-  } yield results
+  } yield results.collect { case CommandResponse.QueryResult(data: Option[T]) =>
+    data
+  }
 }
 
 object TestCluster {

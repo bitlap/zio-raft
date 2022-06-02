@@ -42,39 +42,39 @@ final class RaftClient(
       } yield client
     }
 
-  def submitCommand(command: WriteCommand): ZIO[Clock, Exception, Unit] = for {
-    serde  <- serdeRef.get
-    leader <- leaderRef.get
-    client = channel(leader.address, leader.raftClientPort)
-    chunks <- client.use(c =>
-      c.writeChunk(Chunk.fromArray(serde.serialize(command))) *>
-        c.readChunk(chunkSize)
-    )
-    response <- ZIO.fromEither(serde.deserialize[CommandResponse](chunks.toArray))
-    _ <- response match {
-      case Committed => ZIO.unit
-      case LeaderNotFoundResponse =>
-        shuffleLeaderRef *> submitCommand(command)
-      case Redirect(leaderId) =>
-        for {
-          newLeader <- ZIO
-            .fromOption(nodes.find(_.nodeId == leaderId))
-            .mapError(_ => new Exception("Failed to find leader in node config"))
-          _ <- leaderRef.set(newLeader)
-          _ <- submitCommand(command)
-        } yield ()
-    }
-  } yield ()
+  private def lookupLeaderThenSubmit[T: ClassTag](command: Command): ZIO[Clock, Exception, CommandResponse] =
+    for {
+      serde  <- serdeRef.get
+      leader <- leaderRef.get
+      client = channel(leader.address, leader.raftClientPort)
+      chunks <- client.use(c =>
+        c.writeChunk(Chunk.fromArray(serde.serialize(command))) *>
+          c.readChunk(chunkSize)
+      )
+      response <- ZIO.fromEither(serde.deserialize[CommandResponse](chunks.toArray))
+      _ <- response match {
+        case Committed | QueryResult(_) => ZIO.unit
+        case LeaderNotFoundResponse =>
+          shuffleLeaderRef *> lookupLeaderThenSubmit[T](command)
+        case Redirect(leaderId) =>
+          for {
+            newLeader <- ZIO
+              .fromOption(nodes.find(_.nodeId == leaderId))
+              .mapError(_ => new Exception("Failed to find leader in node config"))
+            _ <- leaderRef.set(newLeader)
+            _ <- lookupLeaderThenSubmit[T](command)
+          } yield ()
+      }
+    } yield response
 
-  def submitQuery[T: ClassTag](query: ReadCommand): ZIO[Clock, Throwable, Option[T]] = for {
-    serde  <- serdeRef.get
-    leader <- leaderRef.get
-    bytes <- channel(leader.address, leader.raftClientPort).use(c =>
-      c.writeChunk(Chunk.fromArray(serde.serialize(query))) *>
-        c.readChunk(chunkSize)
-    )
-    response <- ZIO.effect(serde.deserialize[Option[T]](bytes.toArray).toOption.flatten)
-  } yield response
+  def submitCommand[T: ClassTag](command: WriteCommand): ZIO[Clock, Exception, CommandResponse] =
+    lookupLeaderThenSubmit[T](command)
+
+  def submitQuery[T: ClassTag](query: ReadCommand): ZIO[Clock, Exception, Option[T]] =
+    lookupLeaderThenSubmit[T](query).map {
+      case QueryResult(data: Option[T]) => data
+      case _                            => None
+    }
 
 }
 

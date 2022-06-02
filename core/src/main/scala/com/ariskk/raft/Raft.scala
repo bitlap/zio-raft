@@ -14,10 +14,8 @@ import com.ariskk.raft.statemachine.StateMachine
 import com.ariskk.raft.storage.Storage
 import com.ariskk.raft.volatilestate.VolatileState
 
-/**
- * Runs the consensus module of a single Raft Node.
- * It communicates with the outside world through message passing, using `Queue` instances.
- * Communication with the outside world is fully asynchronous.
+/** Runs the consensus module of a single Raft Node. It communicates with the outside world through message passing,
+ *  using `Queue` instances. Communication with the outside world is fully asynchronous.
  */
 final class Raft[T] private (
   val nodeId: NodeId,
@@ -26,6 +24,31 @@ final class Raft[T] private (
   queues: MessageQueues,
   stateMachine: StateMachine[T]
 ) {
+
+  /** Blocks until it gets committed.
+   */
+  def submitCommand(command: WriteCommand): IO[RaftException, CommandResponse] =
+    state.leader.flatMap {
+      case Some(leaderId) if leaderId == nodeId => processCommand(command)
+      case Some(leaderId) if leaderId != nodeId => ZIO.succeed(Redirect(leaderId))
+      case _                                    => ZIO.succeed(LeaderNotFoundResponse)
+    }
+
+  /** Only the leader should allow reads. The leader needs to contact a quorum to verify it is still the leader before
+   *  returning. This method exists for testing purposes.
+   */
+  def submitQuery(query: ReadCommand)(implicit duration: Duration = 1000.seconds): IO[RaftException, CommandResponse] =
+    // TODO CHECK heartbeat?
+    state.leader.flatMap {
+      case Some(leaderId) if leaderId == nodeId => processReadCommand(query)
+      case Some(leaderId) if leaderId != nodeId => ZIO.succeed(Redirect(leaderId))
+      case _                                    => ZIO.succeed(LeaderNotFoundResponse)
+    }
+
+  private def processReadCommand(command: ReadCommand): IO[RaftException, CommandResponse] =
+    stateMachine.read(command).map(CommandResponse.QueryResult(_))
+
+  def run: ZIO[Clock, RaftException, (Unit, Unit)] = runFollowerLoop
 
   def poll: UIO[Option[Message]] = queues.outboundQueue.poll
 
@@ -39,9 +62,9 @@ final class Raft[T] private (
       queues.appendResponseQueue.offer(entriesResponse)
   }
 
-  def addPeer(peer: NodeId): IO[Nothing, Unit] = state.addPeer(peer)
+  def addPeer(peer: NodeId): UIO[Unit] = state.addPeer(peer)
 
-  def removePeer(peer: NodeId): IO[Nothing, Unit] = state.removePeer(peer)
+  def removePeer(peer: NodeId): UIO[Unit] = state.removePeer(peer)
 
   private[raft] def getAllEntries: IO[RaftException.StorageException, List[LogEntry]] = storage.log.getEntries(Index(0))
 
@@ -49,17 +72,17 @@ final class Raft[T] private (
   private[raft] def appendEntry(index: Index, entry: LogEntry): IO[RaftException.StorageException, Unit] =
     storage.appendEntry(index, entry)
 
-  private[raft] def sendMessage(m: Message): ZIO[Any, Nothing, Boolean] = queues.outboundQueue.offer(m)
+  private[raft] def sendMessage(m: Message): UIO[Boolean] = queues.outboundQueue.offer(m)
 
-  private[raft] def sendMessages(ms: Iterable[Message]): ZIO[Any, Nothing, Boolean] = queues.outboundQueue.offerAll(ms)
+  private[raft] def sendMessages(ms: Iterable[Message]): UIO[Boolean] = queues.outboundQueue.offerAll(ms)
 
   private[raft] def nodeState: UIO[NodeState] = state.nodeState
 
   private[raft] def isLeader: UIO[Boolean] = state.isLeader
 
-  private[raft] def peers: ZIO[Any, Nothing, List[NodeId]] = state.peerList
+  private[raft] def peers: UIO[List[NodeId]] = state.peerList
 
-  private def sendAppendEntries: ZIO[Any, RaftException.StorageException, Unit] = for {
+  private def sendAppendEntries: IO[RaftException.StorageException, Unit] = for {
     currentTerm <- storage.getTerm
     peers       <- state.peerList
     commitIndex <- state.lastCommitIndex
@@ -90,12 +113,10 @@ final class Raft[T] private (
     )
   } yield ()
 
-  /**
-   * If there exists an N such that N > commitIndex, a majority
-   * of matchIndex[i] ≥ N, and log[N].term == currentTerm:
-   * set commitIndex = N (§5.3, §5.4).
+  /** If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm:
+   *  set commitIndex = N (§5.3, §5.4).
    */
-  private def updateCommitIndex(): ZIO[Any, StorageException, Unit] = for {
+  private def updateCommitIndex(): IO[StorageException, Unit] = for {
     term            <- storage.getTerm
     lastCommitIndex <- state.lastCommitIndex
     lastIndex       <- storage.lastIndex
@@ -111,10 +132,9 @@ final class Raft[T] private (
     }
   } yield ()
 
-  /**
-   * AppendEntriesResponses can arrive out of order
+  /** AppendEntriesResponses can arrive out of order
    */
-  private def handleAppendEntriesResponse(response: AppendEntriesResponse): ZIO[Any, StorageException, Unit] =
+  private def handleAppendEntriesResponse(response: AppendEntriesResponse): IO[StorageException, Unit] =
     if (response.success)
       state.updateMatchIndex(response.from, response.lastInsertedIndex) *>
         state.updateNextIndex(response.from, response.lastInsertedIndex.increment) *>
@@ -188,7 +208,6 @@ final class Raft[T] private (
   } yield ()
 
   private[raft] def runForLeader: ZIO[Clock, RaftException, Unit] = {
-
     val standForElectionProgram = for {
       newTerm <- storage.incrementTerm
       _       <- state.stand(newTerm)
@@ -201,39 +220,40 @@ final class Raft[T] private (
     }
   }
 
-  private def sendVoteResponse(voteRequest: VoteRequest, granted: Boolean): ZIO[Any, Nothing, Boolean] =
+  private def sendVoteResponse(voteRequest: VoteRequest, granted: Boolean): UIO[Boolean] =
     sendMessage(VoteResponse(nodeId, voteRequest.from, voteRequest.term, granted))
 
-  private def processVoteRequest(voteRequest: VoteRequest): ZIO[Any, StorageException, Unit] = (for {
-    currentTerm <- storage.getTerm
-    currentVote <- storage.getVote
-    lastIndex   <- storage.lastIndex
-    lastEntry   <- storage.lastEntry
-    _ <-
-      if (
-        lastIndex > voteRequest.lastLogIndex ||
-        (lastIndex == voteRequest.lastLogIndex &&
-          lastEntry.map(_.term).getOrElse(Term(-1)) > voteRequest.lastLogTerm)
-      ) sendVoteResponse(voteRequest, granted = false)
-      else if (voteRequest.term.isAfter(currentTerm))
-        state.becomeFollower *>
-          storage.storeTerm(voteRequest.term) *>
-          storage.storeVote(Vote(voteRequest.from, voteRequest.term)) *>
-          sendVoteResponse(voteRequest, granted = true)
-      else if (
-        voteRequest.term == currentTerm &&
-        (currentVote.isEmpty || currentVote.contains(Vote(voteRequest.from, currentTerm)))
-      )
-        storage.storeVote(Vote(voteRequest.from, currentTerm)) *>
-          sendVoteResponse(voteRequest, granted = true)
-      else sendVoteResponse(voteRequest, granted = false)
-  } yield ())
+  private def processVoteRequest(voteRequest: VoteRequest): IO[StorageException, Unit] =
+    for {
+      currentTerm <- storage.getTerm
+      currentVote <- storage.getVote
+      lastIndex   <- storage.lastIndex
+      lastEntry   <- storage.lastEntry
+      _ <-
+        if (
+          lastIndex > voteRequest.lastLogIndex ||
+          (lastIndex == voteRequest.lastLogIndex &&
+            lastEntry.map(_.term).getOrElse(Term(-1)) > voteRequest.lastLogTerm)
+        ) sendVoteResponse(voteRequest, granted = false)
+        else if (voteRequest.term.isAfter(currentTerm))
+          state.becomeFollower *>
+            storage.storeTerm(voteRequest.term) *>
+            storage.storeVote(Vote(voteRequest.from, voteRequest.term)) *>
+            sendVoteResponse(voteRequest, granted = true)
+        else if (
+          voteRequest.term == currentTerm &&
+          (currentVote.isEmpty || currentVote.contains(Vote(voteRequest.from, currentTerm)))
+        )
+          storage.storeVote(Vote(voteRequest.from, currentTerm)) *>
+            sendVoteResponse(voteRequest, granted = true)
+        else sendVoteResponse(voteRequest, granted = false)
+    } yield ()
 
   private def processInboundVoteRequests: ZIO[Clock, RaftException, Unit] = queues.inboundVoteRequestQueue.take
     .flatMap(processVoteRequest)
     .forever
 
-  private def shouldAppend(previousIndex: Index, previousTerm: Term): ZIO[Any, StorageException, Boolean] =
+  private def shouldAppend(previousIndex: Index, previousTerm: Term): IO[StorageException, Boolean] =
     if (previousIndex.index == -1) ZIO.succeed(true)
     else
       for {
@@ -243,7 +263,7 @@ final class Raft[T] private (
         _ <- ZIO.when(!success)(storage.purgeFrom(previousIndex))
       } yield success
 
-  private def appendLog(ae: AppendEntries): ZIO[Any, RaftException, Unit] =
+  private def appendLog(ae: AppendEntries): IO[RaftException, Unit] =
     shouldAppend(ae.prevLogIndex, ae.prevLogTerm).flatMap { shouldAppend =>
       ZIO.when(shouldAppend) {
         for {
@@ -265,7 +285,7 @@ final class Raft[T] private (
       }
     }
 
-  private def processEntries(ae: AppendEntries): ZIO[Any, RaftException, Unit] = for {
+  private def processEntries(ae: AppendEntries): IO[RaftException, Unit] = for {
     currentTerm  <- storage.getTerm
     currentState <- state.nodeState
     lastIndex    <- storage.logSize.map(x => Index(x - 1))
@@ -319,12 +339,10 @@ final class Raft[T] private (
   private[raft] def runFollowerLoop: ZIO[Clock, RaftException, (Unit, Unit)] =
     processInboundVoteRequests <&> processInboundEntries
 
-  def run: ZIO[Clock, RaftException, (Unit, Unit)] = runFollowerLoop
-
-  private def applyToStateMachine(command: WriteCommand): ZIO[Any, RaftException.StateMachineException, Unit] =
+  private def applyToStateMachine(command: WriteCommand): IO[RaftException.StateMachineException, Unit] =
     stateMachine.write(command) *> state.incrementLastApplied
 
-  private def processCommand(command: WriteCommand): ZIO[Any, RaftException, CommandResponse.Committed.type] = {
+  private def processCommand(command: WriteCommand): IO[RaftException, CommandResponse.Committed.type] = {
     lazy val processCommandProgram = for {
       term    <- storage.getTerm
       last    <- storage.lastIndex
@@ -340,25 +358,6 @@ final class Raft[T] private (
         .map(_ => Committed)
     }
   }
-
-  /**
-   * Blocks until it gets committed.
-   */
-  def submitCommand(command: WriteCommand): ZIO[Clock, RaftException, CommandResponse] =
-    state.leader.flatMap {
-      case Some(leaderId) if leaderId == nodeId => processCommand(command)
-      case Some(leaderId) if leaderId != nodeId => ZIO.succeed(Redirect(leaderId))
-      case None                                 => ZIO.succeed(LeaderNotFoundResponse)
-    }
-
-  /**
-   * Only the leader should allow reads. The leader needs to contact a quorum to verify it is still
-   * the leader before returning.
-   * This method exists for testing purposes.
-   */
-  private[raft] def submitQuery(query: ReadCommand): ZIO[Clock, RaftException, Option[T]] =
-    stateMachine.read(query)
-
 }
 
 object Raft {
@@ -410,7 +409,7 @@ object Raft {
     peers: Set[NodeId],
     storage: Storage,
     stateMachine: StateMachine[T]
-  ): ZIO[Any, Nothing, Raft[T]] = for {
+  ): UIO[Raft[T]] = for {
     state  <- VolatileState(nodeId, peers)
     queues <- MessageQueues.default
   } yield new Raft[T](nodeId, state, storage, queues, stateMachine)

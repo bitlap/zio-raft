@@ -7,8 +7,7 @@ import com.ariskk.raft.model.RaftException.StorageException
 import com.ariskk.raft.model._
 import com.ariskk.raft.storage.Log
 
-/**
- * The current index is kept in a special key called `index`.
+/** The current index is kept in a special key called `index`.
  */
 final class RocksDBLog(
   db: Ref[RocksDB],

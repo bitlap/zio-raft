@@ -21,10 +21,11 @@ final class RaftServer[T](
   serdeRef: Ref[Serde]
 ) {
 
-  private val chunkSize: Int                                                 = 1000
-  private[server] def allEntries: ZIO[Any, StorageException, List[LogEntry]] = raftRef.get.flatMap(_.getAllEntries)
+  private val chunkSize: Int = 1000
 
-  private[server] def getState: ZIO[Any, Nothing, NodeState] = raftRef.get.flatMap(_.nodeState)
+  def allEntries: IO[StorageException, List[LogEntry]] = raftRef.get.flatMap(_.getAllEntries)
+
+  def getState: UIO[NodeState] = raftRef.get.flatMap(_.nodeState)
 
   private lazy val clientChannel: ZIO[Clock, IOException, Nothing] = AsynchronousServerSocketChannel.open.mapM {
     socket =>
