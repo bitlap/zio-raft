@@ -6,8 +6,7 @@ import com.ariskk.raft.model.NodeId
 import com.ariskk.raft.statemachine.KeyValueStore
 import com.ariskk.raft.storage.MemoryStorage
 
-/**
- * Generates Raft instances using MemoryStorage and KeyValueStore
+/** Generates Raft instances using MemoryStorage and KeyValueStore
  */
 object TestRaft {
 

@@ -21,9 +21,11 @@ final class RaftServer[T](
   serdeRef: Ref[Serde]
 ) {
 
-  private[server] def allEntries: ZIO[Any, StorageException, List[LogEntry]] = raftRef.get.flatMap(_.getAllEntries)
+  private val chunkSize: Int = 1000
 
-  private[server] def getState: ZIO[Any, Nothing, NodeState] = raftRef.get.flatMap(_.nodeState)
+  def allEntries: IO[StorageException, List[LogEntry]] = raftRef.get.flatMap(_.getAllEntries)
+
+  def getState: UIO[NodeState] = raftRef.get.flatMap(_.nodeState)
 
   private lazy val clientChannel: ZIO[Clock, IOException, Nothing] = AsynchronousServerSocketChannel.open.mapM {
     socket =>
@@ -37,7 +39,7 @@ final class RaftServer[T](
 
   private def processCommandChannel(channel: AsynchronousSocketChannel): ZIO[Clock, Exception, Nothing] = {
     lazy val program = for {
-      chunk <- channel.readChunk(1000) // TODO fold stream
+      chunk <- channel.readChunk(chunkSize) // TODO fold stream
       bytes = chunk.toArray
       responseBytes <- processCommand(bytes)
       _             <- channel.writeChunk(Chunk.fromArray(responseBytes))
@@ -68,7 +70,7 @@ final class RaftServer[T](
 
   private def processMessageChannel(channel: AsynchronousSocketChannel): ZIO[Clock, Exception, Nothing] = {
     lazy val program = for {
-      chunk <- channel.readChunk(1000) // TODO fold stream
+      chunk <- channel.readChunk(chunkSize) // TODO fold stream
       bytes = chunk.toArray
       responseBytes <- processMessage(bytes)
     } yield ()
@@ -105,13 +107,13 @@ final class RaftServer[T](
       } yield ()
     }
 
-  private lazy val sendMessages: ZIO[Any, Exception, Unit] =
+  private lazy val sendMessages: ZIO[Clock, Exception, Unit] =
     (for {
       raft <- raftRef.get
       _ <- raft.takeAll.flatMap { ms =>
         ZIO.collectAllPar(ms.map(sendMessage))
       }.forever
-    } yield ()).mapError(f => new Exception(f)).provideLayer(zio.clock.Clock.live)
+    } yield ()).mapError(f => new Exception(f))
 
   lazy val run: ZIO[Clock, Exception, Unit] = for {
     raft                    <- raftRef.get

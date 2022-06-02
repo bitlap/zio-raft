@@ -7,10 +7,8 @@ import zio.test.{ assertM, TestAspect }
 
 import com.ariskk.raft.statemachine.{ Key, ReadKey }
 
-/**
- * Those tests use the live clock and emulate a faulty network.
- * `TestCluster` will a) shuffle messages b) drop messages c) delay messages
- * if `chaos = true`. This is to test protocol resilience under realistic conditions.
+/** Those tests use the live clock and emulate a faulty network. `TestCluster` will a) shuffle messages b) drop messages
+ *  c) delay messages if `chaos = true`. This is to test protocol resilience under realistic conditions.
  */
 object ClusterSpec extends BaseSpec {
 

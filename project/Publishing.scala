@@ -2,9 +2,9 @@ import sbt.Keys._
 import sbt._
 import xerial.sbt.Sonatype.autoImport._
 
-/**
- * @author 梦境迷离
- * @version 1.0,2022/4/27
+/** @author
+ *    梦境迷离
+ *  @version 1.0,2022/4/27
  */
 object Publishing {
 
@@ -18,9 +18,9 @@ object Publishing {
       else
         Some("releases" at nexus + "service/local/staging/deploy/maven2")
     },
-    publishMavenStyle := true,
+    publishMavenStyle      := true,
     Test / publishArtifact := false,
-    pomIncludeRepository := { _ => false },
+    pomIncludeRepository   := { _ => false },
     developers := List(
       Developer(
         "ariskk",
@@ -30,7 +30,7 @@ object Publishing {
       )
     ),
     sonatypeProfileName := organization.value,
-    homepage := Some(url("http://ariskk.com")),
+    homepage            := Some(url("http://ariskk.com")),
     scmInfo := Some(
       ScmInfo(
         url("https://github.com/ariskk/zio-raft"),
