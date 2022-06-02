@@ -72,7 +72,7 @@ final class RaftClient(
 
   def submitQuery[T: ClassTag](query: ReadCommand): ZIO[Clock, Exception, Option[T]] =
     lookupLeaderThenSubmit[T](query).map {
-      case QueryResult(data: Option[T]) => data
+      case QueryResult(data: Option[_]) => data.asInstanceOf[Option[T]]
       case _                            => None
     }
 

@@ -37,13 +37,16 @@ final class Raft[T] private (
   /** Only the leader should allow reads. The leader needs to contact a quorum to verify it is still the leader before
    *  returning. This method exists for testing purposes.
    */
-  def submitQuery(query: ReadCommand)(implicit duration: Duration = 1000.seconds): IO[RaftException, CommandResponse] =
+  def submitQuery(query: ReadCommand): IO[RaftException, CommandResponse] =
     // TODO CHECK heartbeat?
     state.leader.flatMap {
       case Some(leaderId) if leaderId == nodeId => processReadCommand(query)
       case Some(leaderId) if leaderId != nodeId => ZIO.succeed(Redirect(leaderId))
       case _                                    => ZIO.succeed(LeaderNotFoundResponse)
     }
+
+  def submitUnsafeQuery(query: ReadCommand): IO[RaftException, CommandResponse] =
+    processReadCommand(query)
 
   private def processReadCommand(command: ReadCommand): IO[RaftException, CommandResponse] =
     stateMachine.read(command).map(CommandResponse.QueryResult(_))
